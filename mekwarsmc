@@ -17,9 +17,14 @@ my $BACKUP_DIR = "/root/backups";
 my $ScreenLog = "$MEKWARSDIR/MekwarsScreen.log";
 my $ErrorLog = "$MEKWARSDIR/logs/errlog.0";
 my $InfoLog = "$MEKWARSDIR/logs/infolog.0";
-my $HackLog = "$MEKWARSDIR/logs/hack.log";
-my $SbbsechoLog = "$MEKWARSDIR/logs/sbbsecho.log";
 my $SpamLog = "$MEKWARSDIR/logs/spam.log";
+my $MainLog = "$MEKWARSDIR/logs/mainlog.0";
+my $ModLog = "$MEKWARSDIR/logs/modlog.0";
+my $TickLog = "$MEKWARSDIR/logs/ticklog.0";
+my $BMLog = "$MEKWARSDIR/logs/bmlog.0";
+my $GameLog = "$MEKWARSDIR/logs/gamelog.0";
+my $PMLog = "$MEKWARSDIR/logs/pmlog.0";
+my $WarnLog = "$MEKWARSDIR/logs/warnlog.0";
 
 ###################################################
 # No changes below here
@@ -117,13 +122,33 @@ sub ReadConfigFile
 			{
 				$InfoLog = $Setting;
 			}
-			if ($Command eq "hacklog")
+			if ($Command eq "mainlog")
 			{
-				$HackLog = $Setting;
+				$MainLog = $Setting;
 			}
-			if ($Command eq "spamlog")
+			if ($Command eq "modlog")
 			{
-				$SpamLog = $Setting;
+				$ModLog = $Setting;
+			}
+			if ($Command eq "ticklog")
+			{
+				$TickLog = $Setting;
+			}
+			if ($Command eq "bmlog")
+			{
+				$BMLog = $Setting;
+			}
+			if ($Command eq "gamelog")
+			{
+				$GameLog = $Setting;
+			}
+			if ($Command eq "pmlog")
+			{
+				$PMLog = $Setting;
+			}
+			if ($Command eq "warnlog")
+			{
+				$WarnLog = $Setting;
 			}
 		}
 		close($FH);
@@ -141,8 +166,13 @@ sub ReadConfigFile
 		print $FH "screenlog=$ScreenLog\n";
 		print $FH "errorlog=$ErrorLog\n";
 		print $FH "infolog=$InfoLog\n";
-		print $FH "hacklog=$HackLog\n";
-		print $FH "spamlog=$SpamLog\n";
+		print $FH "mainlog=$MainLog\n";
+		print $FH "modlog=$ModLog\n";
+		print $FH "ticklog=$TickLog\n";
+		print $FH "bmlog=$BMLog\n";
+		print $FH "gamelog=$GameLog\n";
+		print $FH "pmlog=$PMLog\n";
+		print $FH "warnlog=$WarnLog\n";
 		close($FH);
 	}
 }
@@ -243,7 +273,6 @@ sub MainMenu
                                       '4', 'Turn Off Respawn',
                                       '5', 'Turn On Respawn',
                                       '6', 'Edit sbbs.ini',
-                                      '7', 'Run scfg',
                                       '8', 'Backup / Restore',
                                       '11', 'Edit Settings',
                                       '13', 'Restart Mekwars',
@@ -264,15 +293,13 @@ sub LogFilesMenu
                             list => [ '1', 'Screen Log File',
                                       '2', 'Error Log File',
                                       '3', 'Info Log File',
-                                      '4', 'Hack Log File',
-                                      '5', 'Sbbsecho Log File',
-                                      '6', 'Spam Log File',
-                                      '7', 'Clear Screen',
-                                      '8', 'Clear Error',
-                                      '9', 'Clear Guru',
-                                      '10', 'Clear Hack',
-                                      '11', 'Clear MEKWARS Echo',
-                                      '12', 'Clear Spam',
+                                      '4', 'Main Log File',
+                                      '5', 'Mod Log File',
+                                      '6', 'Tick Log File',
+                                      '7', 'BM Log File',
+                                      '8', 'Game Log File',
+                                      '9', 'PM Log File',
+                                      '10', 'Warn Log File',
                                       'q', 'Main Menu' ] );
 }
 
@@ -410,66 +437,45 @@ sub LogFiles
 		}
 		elsif ($menuselection eq "4")
 		{
-			# Hack Log File
-			PrintDebugCommand("Displaying Hack log file");
-			system("$PagerCommand $HackLog");
+			# Main Log File
+			PrintDebugCommand("Displaying Main log file");
+			system("$PagerCommand $MainLog");
 		}
 		elsif ($menuselection eq "5")
 		{
-			# Sbbsecho Log File
-			PrintDebugCommand("Displaying Sbbsecho log file");
-			system("$PagerCommand $SbbsechoLog");
+			# Mod Log File
+			PrintDebugCommand("Displaying Mod log file");
+			system("$PagerCommand $ModLog");
 		}
 		elsif ($menuselection eq "6")
 		{
-			# Spam Log File
-			PrintDebugCommand("Displaying Spam log file");
-			system("$PagerCommand $SpamLog");
+			# Tick Log File
+			PrintDebugCommand("Displaying Tick log file");
+			system("$PagerCommand $TickLog");
 		}
 		elsif ($menuselection eq "7")
 		{
-			# Screen log file
-			if (-f $ScreenLog)
-			{
-				PrintDebugCommand("Deleting Screen log file");
-				unlink($ScreenLog);
-			}
+			# BM Log File
+			PrintDebugCommand("Displaying BM log file");
+			system("$PagerCommand $BMLog");
+		}
+		elsif ($menuselection eq "8")
+		{
+			# Game Log File
+			PrintDebugCommand("Displaying Game log file");
+			system("$PagerCommand $GameLog");
 		}
 		elsif ($menuselection eq "9")
 		{
-			# Guru log file
-			if (-f $InfoLog)
-			{
-				PrintDebugCommand("Deleting Guru log file");
-				unlink($InfoLog);
-			}
+			# PM Log File
+			PrintDebugCommand("Displaying PM log file");
+			system("$PagerCommand $PMLog");
 		}
 		elsif ($menuselection eq "10")
 		{
-			# Hack log file
-			if (-f $HackLog)
-			{
-				PrintDebugCommand("Deleting Hack log file");
-				unlink($HackLog);
-			}
-		}
-		elsif ($menuselection eq "11")
-		{
-			# Sbbsecho log file
-			if (-f $SbbsechoLog)
-			{
-				PrintDebugCommand("Deleting Sbbsecho log file");
-				unlink($SbbsechoLog);
-			}
-		}
-		elsif ($menuselection eq "12")
-		{
-			# Spam log file
-			if (-f $SpamLog)
-			{
-				PrintDebugCommand("Deleting Spam log file");
-				unlink($SpamLog);
-			}
+			# Warn Log File
+			PrintDebugCommand("Displaying PM log file");
+			system("$PagerCommand $WarnLog");
 		}
 	}
 }
