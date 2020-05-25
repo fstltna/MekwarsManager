@@ -25,6 +25,9 @@ my $BMLog = "$MEKWARSDIR/logs/bmlog.0";
 my $GameLog = "$MEKWARSDIR/logs/gamelog.0";
 my $PMLog = "$MEKWARSDIR/logs/pmlog.0";
 my $WarnLog = "$MEKWARSDIR/logs/warnlog.0";
+my $Tasknames = "$MEKWARSDIR/data/tasknames/Tasknames.txt";
+my $CampaignConfig = "$MEKWARSDIR/data/campaignconfig.txt";
+my $ServerConfig = "$MEKWARSDIR/data/serverconfig.txt";
 
 ###################################################
 # No changes below here
@@ -150,6 +153,18 @@ sub ReadConfigFile
 			{
 				$WarnLog = $Setting;
 			}
+			if ($Command eq "tasknames")
+			{
+				$Tasknames = $Setting;
+			}
+			if ($Command eq "campaignconfig")
+			{
+				$CampaignConfig = $Setting;
+			}
+			if ($Command eq "serverconfig")
+			{
+				$ServerConfig = $Setting;
+			}
 		}
 		close($FH);
 	}
@@ -173,6 +188,9 @@ sub ReadConfigFile
 		print $FH "gamelog=$GameLog\n";
 		print $FH "pmlog=$PMLog\n";
 		print $FH "warnlog=$WarnLog\n";
+		print $FH "tasknames=$Tasknames\n";
+		print $FH "campaignconfig=$CampaignConfig\n";
+		print $FH "serverconfig=$ServerConfig\n";
 		close($FH);
 	}
 }
@@ -272,11 +290,13 @@ sub MainMenu
                                       '3', 'Server Console',
                                       '4', 'Turn Off Respawn',
                                       '5', 'Turn On Respawn',
-                                      '6', 'Edit sbbs.ini',
-                                      '8', 'Backup / Restore',
-                                      '11', 'Edit Settings',
-                                      '13', 'Restart Mekwars',
-                                      '15', 'Log Files',
+                                      '6', 'Edit Server Conf',
+                                      '7', 'Edit Tasknames',
+                                      '8', 'Edit Campaign Conf',
+                                      '9', 'Backup / Restore',
+                                      '10', 'Edit Settings',
+                                      '11', 'Restart Mekwars',
+                                      '12', 'Log Files',
                                       'q', 'Quit MEKWARSMC' ] );
 }
 
@@ -557,29 +577,41 @@ while (-1)
 	}
 	elsif ($menuselection eq "6")
 	{
-		# Edit sbbs.ini file
-		PrintDebugCommand("$FileEditor $MEKWARSDIR/ctrl/sbbs.ini");
-		system("$FileEditor $MEKWARSDIR/ctrl/sbbs.ini");
+		# Edit Serverconfig file
+		PrintDebugCommand("$FileEditor $ServerConfig");
+		system("$FileEditor $ServerConfig");
+	}
+	elsif ($menuselection eq "7")
+	{
+		# Edit Tasknames file
+		PrintDebugCommand("$FileEditor $Tasknames");
+		system("$FileEditor $Tasknames");
 	}
 	elsif ($menuselection eq "8")
+	{
+		# Edit Campaign Config file
+		PrintDebugCommand("$FileEditor $CampaignConfig");
+		system("$FileEditor $CampaignConfig");
+	}
+	elsif ($menuselection eq "9")
 	{
 		# Go to backup menu
 		BackupTools();
 	}
-	elsif ($menuselection eq "11")
+	elsif ($menuselection eq "10")
 	{
 		# Edit Settings
 		PrintDebugCommand("$FileEditor $MySettings");
 		system("$FileEditor $MySettings");
 		ReadConfigFile();
 	}
-	elsif ($menuselection eq "13")
+	elsif ($menuselection eq "11")
 	{
 		# Reset the server process
 		print "Killing process, please wait...";
 		KillMekwars();
 	}
-	elsif ($menuselection eq "15")
+	elsif ($menuselection eq "12")
 	{
 		# Log files
 		LogFiles();
