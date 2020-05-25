@@ -1,0 +1,583 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use UI::Dialog;
+use Term::ReadKey;
+use Term::ANSIScreen qw(cls);
+use POSIX qw(strftime);
+use Number::Bytes::Human qw(format_bytes parse_bytes);
+
+my $FileEditor = "/bin/nano";
+my $InitDName = "/etc/init.d/mekwars";
+my $MEKWARSDIR = "/root/MWServer";
+my $BackupCommand = "/root/MekwarsBackup/mekwarsbackup.pl";
+my $PagerCommand = "/usr/bin/less";
+my $BACKUP_DIR = "/root/backups";
+my $ScreenLog = "$MEKWARSDIR/MekwarsScreen.log";
+my $ErrorLog = "$MEKWARSDIR/logs/errlog.0";
+my $InfoLog = "$MEKWARSDIR/logs/infolog.0";
+my $HackLog = "$MEKWARSDIR/logs/hack.log";
+my $SbbsechoLog = "$MEKWARSDIR/logs/sbbsecho.log";
+my $SpamLog = "$MEKWARSDIR/logs/spam.log";
+
+###################################################
+# No changes below here
+###################################################
+
+my $MySettings = "$ENV{'HOME'}/.mekwarsmcrc";
+
+my $MMC_ver = "1.0.0";
+my $Record = "false";	# Are results saved?
+my $TempDir = "/tmp";
+my $RobotName = "";
+my $BotVersion = "";
+my $UserName = "";
+my $ServerStatus = "foo";
+my $SCFG = "$MEKWARSDIR/exec/scfg";
+my $DEBUG_MODE = "off";
+
+my $CONF_FROM = "";
+my $CONF_SUBJECT = "";
+my $CONF_GROUPS = "";
+my $CONF_FILE = "";
+
+my $RESTORE_COMMAND = "tar xvzf";
+
+if ($ENV{'EDITOR'})
+{
+        $FileEditor = $ENV{'EDITOR'};
+}
+
+my $d = new UI::Dialog ( backtitle => "Mekwars Management Console v$MMC_ver", height => 20, width => 65, listheight => 5,
+	order => [ 'ascii', 'cdialog', 'xdialog' ]);
+
+my $windowtitle = "Welcome to the Mekwars Management Console!";
+my $enjoyedtitle = "We hope you enjoyed MEKWARSMC!";
+my $introtext =
+"This is the Mekwars Management Console, a utility for
+Mekwars server operators to manage their servers from a text GUI
+rather than the command line.";
+
+$d->msgbox( title => $windowtitle, text => $introtext );
+
+if (($d->state() eq "ESC") || ($d->state() eq "CANCEL"))
+{
+	exit 0;
+}
+
+sub ReadConfigFile
+{
+	# Check for config file
+	if (-f $MySettings)
+	{
+		# Read in settings
+		open (my $FH, "<", $MySettings) or die "Could not read default file '$MySettings' $!";
+		while (<$FH>)
+		{
+			chop();
+			my ($Command, $Setting) = split(/=/, $_);
+			if ($Command eq "fileeditor")
+			{
+				$FileEditor = $Setting;
+			}
+			if ($Command eq "initdname")
+			{
+				$InitDName = $Setting;
+			}
+			if ($Command eq "mekwarsdir")
+			{
+				$MEKWARSDIR = $Setting;
+			}
+			if ($Command eq "backupcommand")
+			{
+				$BackupCommand = $Setting;
+			}
+			if ($Command eq "pagercommand")
+			{
+				$PagerCommand = $Setting;
+			}
+			if ($Command eq "debugmode")
+			{
+				$DEBUG_MODE = $Setting;
+			}
+			if ($Command eq "backupdir")
+			{
+				$BACKUP_DIR = $Setting;
+			}
+			if ($Command eq "screenlog")
+			{
+				$ScreenLog = $Setting;
+			}
+			if ($Command eq "errorlog")
+			{
+				$ErrorLog = $Setting;
+			}
+			if ($Command eq "infolog")
+			{
+				$InfoLog = $Setting;
+			}
+			if ($Command eq "hacklog")
+			{
+				$HackLog = $Setting;
+			}
+			if ($Command eq "spamlog")
+			{
+				$SpamLog = $Setting;
+			}
+		}
+		close($FH);
+	}
+	else
+	{
+		# Store defaults
+		open (my $FH, ">", $MySettings) or die "Could not create default file '$MySettings' $!";
+		print $FH "mekwarsdir=$MEKWARSDIR\n";
+		print $FH "fileeditor=$FileEditor\n";
+		print $FH "backupcommand=$BackupCommand\n";
+		print $FH "pagercommand=$PagerCommand\n";
+		print $FH "backupdir=$BACKUP_DIR\n";
+		print $FH "debugmode=$DEBUG_MODE\n";
+		print $FH "screenlog=$ScreenLog\n";
+		print $FH "errorlog=$ErrorLog\n";
+		print $FH "infolog=$InfoLog\n";
+		print $FH "hacklog=$HackLog\n";
+		print $FH "spamlog=$SpamLog\n";
+		close($FH);
+	}
+}
+
+my $menuselection = "";
+
+sub PrintDebugCommand
+{
+	if ($DEBUG_MODE eq "off")
+	{
+		return;
+	}
+	my $PassedString = shift;
+	print "About to run:\n$PassedString\n";
+	print "Press Enter To Run This:";
+	my $entered = <STDIN>;
+}
+
+sub CheckServerStatus
+{
+	my $running=`ps ax|grep MekWarsServer.jar|grep -v grep`;
+
+	$ServerStatus = "Stopped";
+        if ($running ne "")
+        {
+                $ServerStatus = "Running";
+        }
+        else
+        {
+                $ServerStatus = "Stopped";
+        }
+}
+
+sub ReadConfig
+{
+	my $Keyword;
+	my $Keyvalue;
+
+	$CONF_FROM = "";
+	$CONF_SUBJECT = "";
+	$CONF_GROUPS = "";
+
+	open(my $fh, '<', $CONF_FILE) or die "Could not open file '$CONF_FILE' $!";
+	while (my $row = <$fh>)
+	{
+		chomp $row;
+		($Keyword, $Keyvalue) = split(':', $row);
+		if ($Keyword eq "FROM")
+		{
+			$CONF_FROM = $Keyvalue;
+		}
+		elsif ($Keyword eq "SUBJECT")
+		{
+			$CONF_SUBJECT = $Keyvalue;
+		}
+		elsif ($Keyword eq "GROUPS")
+		{
+			$CONF_GROUPS = $Keyvalue;
+		}
+	}
+	close($fh);
+	if ($CONF_FROM eq "")
+	{
+		die ("FROM not set in config file");
+	}
+	if ($CONF_SUBJECT eq "")
+	{
+		die ("SUBJECT not set in config file");
+	}
+	if ($CONF_GROUPS eq "")
+	{
+		die ("GROUPS not set in config file");
+	}
+}
+
+sub KillMekwars
+{
+	# Kill the Mekwars server process
+	print "Killing process, please wait...";
+	system("killall MekWarsServer.jar");
+
+	sleep(5);
+}
+
+sub MainMenu
+{
+	my $WantRespawn="ON";
+	CheckServerStatus();
+	if (-f "$MEKWARSDIR/nostart")
+	{
+		$WantRespawn="OFF";
+	}
+
+	$menuselection = $d->menu( title => "Main Menu", text => "Server is $ServerStatus and respawn is $WantRespawn - Select one:",
+                            list => [ '1', 'Start Server',
+                                      '2', 'Stop Server',
+                                      '3', 'Server Console',
+                                      '4', 'Turn Off Respawn',
+                                      '5', 'Turn On Respawn',
+                                      '6', 'Edit sbbs.ini',
+                                      '7', 'Run scfg',
+                                      '8', 'Backup / Restore',
+                                      '11', 'Edit Settings',
+                                      '13', 'Restart Mekwars',
+                                      '15', 'Log Files',
+                                      'q', 'Quit MEKWARSMC' ] );
+}
+
+sub LogFilesMenu
+{
+	my $WantRespawn="ON";
+	CheckServerStatus();
+	if (-f "$MEKWARSDIR/nostart")
+	{
+		$WantRespawn="OFF";
+	}
+
+	$menuselection = $d->menu( title => "Log File Viewer Menu", text => "Server is $ServerStatus and respawn is $WantRespawn - Select one:",
+                            list => [ '1', 'Screen Log File',
+                                      '2', 'Error Log File',
+                                      '3', 'Info Log File',
+                                      '4', 'Hack Log File',
+                                      '5', 'Sbbsecho Log File',
+                                      '6', 'Spam Log File',
+                                      '7', 'Clear Screen',
+                                      '8', 'Clear Error',
+                                      '9', 'Clear Guru',
+                                      '10', 'Clear Hack',
+                                      '11', 'Clear MEKWARS Echo',
+                                      '12', 'Clear Spam',
+                                      'q', 'Main Menu' ] );
+}
+
+sub BackupToolsMenu
+{
+	my $WantRespawn="ON";
+	CheckServerStatus();
+	if (-f "$MEKWARSDIR/nostart")
+	{
+		$WantRespawn="OFF";
+	}
+
+	$menuselection = $d->menu( title => "Backup Tools Menu", text => "Server is $ServerStatus and respawn is $WantRespawn - Select one:",
+                            list => [ '1', 'Run Backup',
+                                      '2', 'Restore Backup',
+                                      'q', 'Main Menu' ] );
+}
+
+sub GetWhichBackup
+{
+	my $UsedFile = 0;
+	opendir(DIR, $BACKUP_DIR) or die $!;
+	my @file_list;
+	while ( my $file = readdir(DIR))
+	{
+		# We only want files
+		next unless (-f "$BACKUP_DIR/$file");
+
+		# Use a regular expression to find files ending in .tgz
+		next unless ($file =~ m/\.tgz$/);
+		push @file_list, "$BACKUP_DIR/$file";
+	}
+	closedir(DIR);
+
+	#print scalar @file_list;
+	system("clear");
+	print "Backup\tBackup Date\t\tSize\n";
+	for my $file (sort
+		{
+			my @a_stat = stat($a);
+			my @b_stat = stat($b);
+			$b_stat[8] <=> $a_stat[8];
+		} @file_list ) {
+			$UsedFile++;
+			my @stat = stat ("$file");
+			my $size = format_bytes($stat[7], bs => 1000);
+			print "$UsedFile\t" . strftime("%m/%d/%Y %H:%M:%S", localtime($stat[8])) . "\t$size ($file)\n";
+		};
+
+	#Ask user which one
+	while(-1)
+	{
+		print "Restore which backup? (1-5): ";
+		my $Chosen = <STDIN>;
+		chop ($Chosen);
+		if ((lc($Chosen) eq "q") || (lc($Chosen) eq "quit") || ($Chosen eq ""))
+		{
+			return "";
+		}
+		my $IntChosen = int($Chosen);
+		if (($IntChosen >= 1) && ($IntChosen <= 5))
+		{
+			return $Chosen;
+		}
+	}
+}
+
+sub DoRestore
+{
+	my $WhichBackup = "";
+
+	# Get which backup they want
+	$WhichBackup = GetWhichBackup();
+	if ($WhichBackup eq "")
+	{
+		print "No backup selected\n";
+		return;
+	}
+	print "Using backup $WhichBackup...\n";
+
+	# Turn off respawn
+	PrintDebugCommand("touch $MEKWARSDIR/nostart");
+	system("touch $MEKWARSDIR/nostart");
+	# Kill the server process
+	print "Killing MEKWARS process, please wait...";
+	KillMekwars();
+	# Create new folder
+	print "Creating new folder, please wait...";
+	PrintDebugCommand("mkdir $MEKWARSDIR-new");
+	system("mkdir $MEKWARSDIR-new");
+	PrintDebugCommand("touch $MEKWARSDIR-new/nostart");
+	system("touch $MEKWARSDIR-new/nostart");
+	# Swap folders
+	print "Swapping folders, please wait...";
+	PrintDebugCommand("mv $MEKWARSDIR $MEKWARSDIR-keep");
+	system("mv $MEKWARSDIR $MEKWARSDIR-keep");
+	PrintDebugCommand("mv $MEKWARSDIR-new $MEKWARSDIR");
+	system("mv $MEKWARSDIR-new $MEKWARSDIR");
+	PrintDebugCommand("rm -r $MEKWARSDIR-keep");
+	system("rm -r $MEKWARSDIR-keep");
+
+	# Do the restore
+	chdir ("/");
+	PrintDebugCommand("$RESTORE_COMMAND $BACKUP_DIR/syncbackup-$WhichBackup.tgz");
+	system("$RESTORE_COMMAND $BACKUP_DIR/syncbackup-$WhichBackup.tgz");
+	unlink("$MEKWARSDIR/nostart");
+}
+
+sub LogFiles
+{
+	while (-1)
+	{
+		LogFilesMenu();
+		if (($menuselection eq "CANCEL") || ($menuselection eq "ESC") || ($menuselection eq "") || ($menuselection eq "q") || ($menuselection eq "Q"))
+		{
+			return;
+		}
+		elsif ($menuselection eq "1")
+		{
+			# Screen log file
+			PrintDebugCommand("Displaying Screen log file");
+			system("$PagerCommand $ScreenLog");
+		}
+		elsif ($menuselection eq "2")
+		{
+			# Error Log File
+			PrintDebugCommand("Displaying Error log file");
+			system("$PagerCommand $ErrorLog");
+		}
+		elsif ($menuselection eq "3")
+		{
+			# Info Log File
+			PrintDebugCommand("Displaying Info log file");
+			system("$PagerCommand $InfoLog");
+		}
+		elsif ($menuselection eq "4")
+		{
+			# Hack Log File
+			PrintDebugCommand("Displaying Hack log file");
+			system("$PagerCommand $HackLog");
+		}
+		elsif ($menuselection eq "5")
+		{
+			# Sbbsecho Log File
+			PrintDebugCommand("Displaying Sbbsecho log file");
+			system("$PagerCommand $SbbsechoLog");
+		}
+		elsif ($menuselection eq "6")
+		{
+			# Spam Log File
+			PrintDebugCommand("Displaying Spam log file");
+			system("$PagerCommand $SpamLog");
+		}
+		elsif ($menuselection eq "7")
+		{
+			# Screen log file
+			if (-f $ScreenLog)
+			{
+				PrintDebugCommand("Deleting Screen log file");
+				unlink($ScreenLog);
+			}
+		}
+		elsif ($menuselection eq "9")
+		{
+			# Guru log file
+			if (-f $InfoLog)
+			{
+				PrintDebugCommand("Deleting Guru log file");
+				unlink($InfoLog);
+			}
+		}
+		elsif ($menuselection eq "10")
+		{
+			# Hack log file
+			if (-f $HackLog)
+			{
+				PrintDebugCommand("Deleting Hack log file");
+				unlink($HackLog);
+			}
+		}
+		elsif ($menuselection eq "11")
+		{
+			# Sbbsecho log file
+			if (-f $SbbsechoLog)
+			{
+				PrintDebugCommand("Deleting Sbbsecho log file");
+				unlink($SbbsechoLog);
+			}
+		}
+		elsif ($menuselection eq "12")
+		{
+			# Spam log file
+			if (-f $SpamLog)
+			{
+				PrintDebugCommand("Deleting Spam log file");
+				unlink($SpamLog);
+			}
+		}
+	}
+}
+
+sub BackupTools
+{
+	while (-1)
+	{
+		BackupToolsMenu();
+		if (($menuselection eq "CANCEL") || ($menuselection eq "ESC") || ($menuselection eq "") || ($menuselection eq "q") || ($menuselection eq "Q"))
+		{
+			return;
+		}
+		elsif ($menuselection eq "1")
+		{
+			# Run a backup
+			PrintDebugCommand("$BackupCommand");
+			system("$BackupCommand");
+			print "Press Enter To Continue";
+			my $entered = <STDIN>;
+		}
+		elsif ($menuselection eq "2")
+		{
+			# Do a restore
+			DoRestore();
+			print "Press Enter To Continue";
+			my $entered = <STDIN>;
+		}
+	}
+}
+
+ReadConfigFile();
+
+while (-1)
+{
+	MainMenu();
+	if (($menuselection eq "CANCEL") || ($menuselection eq "ESC") || ($menuselection eq "") || ($menuselection eq "q") || ($menuselection eq "Q"))
+	{
+		$d->msgbox( title => $enjoyedtitle, text => "Thanks for using MEKWARSMC..." );
+		exit 0;
+	} 
+	if ($menuselection eq "1")
+	{
+		if ($d->yesno( text => "Confirm starting the server", text => "Are you sure you want to start the server? You should likely use option #13 instead..." ))
+		{
+			PrintDebugCommand("$InitDName start");
+			system("$InitDName start");
+			sleep(10);
+		}
+	}
+	elsif ($menuselection eq "2")
+	{
+		if ($d->yesno( text => "Confirm stopping the server", text => "Are you sure you want to shut down the server?" ))
+		{
+			PrintDebugCommand("$InitDName stop");
+			system("$InitDName stop");
+			sleep(10);
+		}
+	}
+	elsif ($menuselection eq "3")
+	{
+		$d->msgbox( text => "To exit the MEKWARS console and return to MEKWARSMC press CTRL-A CTRL-D" );
+		PrintDebugCommand("screen -r Mekwars");
+		system("screen -r Mekwars");
+	}
+	elsif ($menuselection eq "4")
+	{
+		# Turn off respawn
+		PrintDebugCommand("touch $MEKWARSDIR/nostart");
+		system("touch $MEKWARSDIR/nostart");
+	}
+	elsif ($menuselection eq "5")
+	{
+		# Turn respawn back on
+		if (-f "$MEKWARSDIR/nostart")
+		{
+			unlink("$MEKWARSDIR/nostart");
+		}
+	}
+	elsif ($menuselection eq "6")
+	{
+		# Edit sbbs.ini file
+		PrintDebugCommand("$FileEditor $MEKWARSDIR/ctrl/sbbs.ini");
+		system("$FileEditor $MEKWARSDIR/ctrl/sbbs.ini");
+	}
+	elsif ($menuselection eq "8")
+	{
+		# Go to backup menu
+		BackupTools();
+	}
+	elsif ($menuselection eq "11")
+	{
+		# Edit Settings
+		PrintDebugCommand("$FileEditor $MySettings");
+		system("$FileEditor $MySettings");
+		ReadConfigFile();
+	}
+	elsif ($menuselection eq "13")
+	{
+		# Reset the server process
+		print "Killing process, please wait...";
+		KillMekwars();
+	}
+	elsif ($menuselection eq "15")
+	{
+		# Log files
+		LogFiles();
+	}
+}
+
+exit 0;
